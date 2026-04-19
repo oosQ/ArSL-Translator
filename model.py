@@ -3,6 +3,7 @@ import mediapipe as mp
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import time
+import numpy as np
 
 MODEL_PATH = "hand_landmarker.task"
 
@@ -19,9 +20,39 @@ options = vision.HandLandmarkerOptions(
 
 landmarker = vision.HandLandmarker.create_from_options(options)
 
-# MediaPipe drawing utilities
-mp_drawing = mp.solutions.drawing_utils
-mp_hands = mp.solutions.hands
+# Hand connections for drawing
+HAND_CONNECTIONS = [
+    (0, 1), (1, 2), (2, 3), (3, 4),  # Thumb
+    (0, 5), (5, 6), (6, 7), (7, 8),  # Index
+    (0, 9), (9, 10), (10, 11), (11, 12),  # Middle
+    (0, 13), (13, 14), (14, 15), (15, 16),  # Ring
+    (0, 17), (17, 18), (18, 19), (19, 20),  # Pinky
+    (5, 9), (9, 13), (13, 17)  # Palm
+]
+
+def draw_landmarks_on_image(image, hand_landmarks):
+    """Draw hand landmarks and connections on the image."""
+    h, w, _ = image.shape
+    
+    for landmarks in hand_landmarks:
+        # Draw connections (white lines)
+        for connection in HAND_CONNECTIONS:
+            start_idx = connection[0]
+            end_idx = connection[1]
+            
+            start_point = (int(landmarks[start_idx].x * w), int(landmarks[start_idx].y * h))
+            end_point = (int(landmarks[end_idx].x * w), int(landmarks[end_idx].y * h))
+            
+            cv2.line(image, start_point, end_point, (255, 255, 255), 2)
+        
+        # Draw landmarks (blue circles)
+        for landmark in landmarks:
+            x = int(landmark.x * w)
+            y = int(landmark.y * h)
+            cv2.circle(image, (x, y), 5, (255, 0, 0), -1)
+            cv2.circle(image, (x, y), 2, (0, 255, 0), -1)
+    
+    return image
 
 # open webcam
 cap = cv2.VideoCapture(0)
@@ -57,27 +88,13 @@ while True:
 
     # If a hand is detected, draw landmarks
     if result.hand_landmarks:
-        for hand_landmarks in result.hand_landmarks:
-            # Convert landmarks to a format suitable for drawing
-            hand_landmarks_proto = mp.framework.formats.landmark_pb2.NormalizedLandmarkList()
-            for landmark in hand_landmarks:
-                hand_landmarks_proto.landmark.add(
-                    x=landmark.x,
-                    y=landmark.y,
-                    z=landmark.z
-                )
-
-            mp_drawing.draw_landmarks(
-                frame,
-                hand_landmarks_proto,
-                mp_hands.HAND_CONNECTIONS
-            )
-
-        # Print only the first 3 landmarks for testing
-        first_hand = result.hand_landmarks[0]
-        print("Detected hand landmarks:")
-        for i, lm in enumerate(first_hand[:3]):
-            print(f"Landmark {i}: x={lm.x:.3f}, y={lm.y:.3f}, z={lm.z:.3f}")
+        frame = draw_landmarks_on_image(frame, result.hand_landmarks)
+        status_text = f"Hand detected ({len(result.hand_landmarks)} hand(s))"
+        cv2.putText(frame, status_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 
+                    1, (0, 255, 0), 2)
+    else:
+        cv2.putText(frame, "No hand detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 
+                    1, (0, 0, 255), 2)
 
     # Display the image
     cv2.imshow("Hand Landmarks Test", frame)
