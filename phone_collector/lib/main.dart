@@ -158,6 +158,7 @@ class _CollectorPageState extends State<CollectorPage> {
 
   Future<File> _datasetFile() async {
     final directory = await getApplicationDocumentsDirectory();
+    await directory.create(recursive: true);
     return File('${directory.path}/dataset.csv');
   }
 
@@ -171,7 +172,7 @@ class _CollectorPageState extends State<CollectorPage> {
       columns.addAll(['x$i', 'y$i', 'z$i']);
     }
     columns.add('label');
-    await file.writeAsString('${columns.join(',')}\n');
+    await file.writeAsString('${columns.join(',')}\n', flush: true);
   }
 
   Future<void> _saveSample() async {
@@ -206,12 +207,17 @@ class _CollectorPageState extends State<CollectorPage> {
       }
       values.add(label);
 
-      await file.writeAsString('${values.join(',')}\n', mode: FileMode.append);
+      await file.writeAsString(
+        '${values.join(',')}\n',
+        mode: FileMode.append,
+        flush: true,
+      );
 
       if (mounted) {
         setState(() {
           _savedCount += 1;
-          _status = 'Saved sample #$_savedCount for "$label".';
+          _status =
+              'Saved sample #$_savedCount for "$label" to ${file.path}.';
         });
       }
     } catch (e) {
@@ -228,7 +234,7 @@ class _CollectorPageState extends State<CollectorPage> {
   Future<void> _shareDataset() async {
     final file = await _datasetFile();
     if (!await file.exists()) {
-      setState(() => _status = 'No dataset file yet.');
+      setState(() => _status = 'No dataset file yet at ${file.path}.');
       return;
     }
 
@@ -236,6 +242,91 @@ class _CollectorPageState extends State<CollectorPage> {
       [XFile(file.path)],
       text: 'Collected hand landmark dataset',
     );
+  }
+
+  Future<List<List<String>>> _readDatasetRows() async {
+    final file = await _datasetFile();
+    if (!await file.exists()) {
+      return [];
+    }
+
+    final lines = await file.readAsLines();
+    return lines
+        .where((line) => line.trim().isNotEmpty)
+        .map((line) => line.split(','))
+        .toList();
+  }
+
+  Future<void> _openDatasetPage() async {
+    final rows = await _readDatasetRows();
+    if (!mounted) {
+      return;
+    }
+
+    if (rows.isEmpty) {
+      setState(() => _status = 'No dataset file to view yet.');
+      return;
+    }
+
+    final file = await _datasetFile();
+    if (!mounted) {
+      return;
+    }
+
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => DatasetPage(
+          rows: rows,
+          filePath: file.path,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteDataset() async {
+    final file = await _datasetFile();
+    if (!await file.exists()) {
+      if (mounted) {
+        setState(() => _status = 'No dataset file to delete at ${file.path}.');
+      }
+      return;
+    }
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete dataset'),
+        content: Text('Remove ${file.path}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) {
+      return;
+    }
+
+    try {
+      await file.delete();
+      if (mounted) {
+        setState(() {
+          _savedCount = 0;
+          _status = 'Deleted dataset file at ${file.path}.';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _status = 'Delete failed: $e');
+      }
+    }
   }
 
   Future<void> _switchCamera() async {
@@ -277,9 +368,19 @@ class _CollectorPageState extends State<CollectorPage> {
             tooltip: 'Switch camera',
           ),
           IconButton(
+            onPressed: _openDatasetPage,
+            icon: const Icon(Icons.table_view),
+            tooltip: 'View dataset',
+          ),
+          IconButton(
             onPressed: _shareDataset,
             icon: const Icon(Icons.ios_share),
             tooltip: 'Share dataset',
+          ),
+          IconButton(
+            onPressed: _deleteDataset,
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Delete dataset',
           ),
         ],
       ),
@@ -312,8 +413,9 @@ class _CollectorPageState extends State<CollectorPage> {
                     ),
                   ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
+          SafeArea(
+            top: false,
+            minimum: const EdgeInsets.fromLTRB(16, 16, 16, 16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -344,6 +446,128 @@ class _CollectorPageState extends State<CollectorPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class DatasetPage extends StatelessWidget {
+  const DatasetPage({
+    super.key,
+    required this.rows,
+    required this.filePath,
+  });
+
+  final List<List<String>> rows;
+  final String filePath;
+
+  @override
+  Widget build(BuildContext context) {
+    final headers = rows.first;
+    final dataRows = rows.skip(1).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dataset View'),
+      ),
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'dataset.csv',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${dataRows.length} rows',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    filePath,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: dataRows.isEmpty
+                  ? const Center(
+                      child: Text('The file only contains the header row.'),
+                    )
+                  : Scrollbar(
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.all(12),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: MediaQuery.of(context).size.width - 24,
+                          ),
+                          child: SingleChildScrollView(
+                            child: DataTable(
+                              headingRowColor: WidgetStatePropertyAll(
+                                Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
+                              ),
+                              headingTextStyle: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                              dataRowMinHeight: 44,
+                              dataRowMaxHeight: 56,
+                              columnSpacing: 20,
+                              horizontalMargin: 12,
+                              columns: headers
+                                  .map(
+                                    (header) => DataColumn(
+                                      label: SizedBox(
+                                        width: 88,
+                                        child: Text(
+                                          header,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                              rows: dataRows
+                                  .map(
+                                    (row) => DataRow(
+                                      cells: List.generate(
+                                        headers.length,
+                                        (index) => DataCell(
+                                          SizedBox(
+                                            width: 88,
+                                            child: Text(
+                                              index < row.length
+                                                  ? row[index]
+                                                  : '',
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                  .toList(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
