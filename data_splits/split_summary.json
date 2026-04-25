@@ -1,0 +1,46 @@
+{
+  "seed": 7,
+  "source_rows": 3298,
+  "train_rows": 2308,
+  "val_rows": 495,
+  "test_rows": 495,
+  "train_label_counts": {
+    "alif": 209,
+    "ba": 210,
+    "dal": 210,
+    "ha": 210,
+    "jeem": 210,
+    "kha": 210,
+    "raa": 210,
+    "ta": 210,
+    "tha": 210,
+    "thal": 210,
+    "unknown": 209
+  },
+  "val_label_counts": {
+    "alif": 45,
+    "ba": 45,
+    "dal": 45,
+    "ha": 45,
+    "jeem": 45,
+    "kha": 45,
+    "raa": 45,
+    "ta": 45,
+    "tha": 45,
+    "thal": 45,
+    "unknown": 45
+  },
+  "test_label_counts": {
+    "alif": 45,
+    "ba": 45,
+    "dal": 45,
+    "ha": 45,
+    "jeem": 45,
+    "kha": 45,
+    "raa": 45,
+    "ta": 45,
+    "tha": 45,
+    "thal": 45,
+    "unknown": 45
+  }
+}
