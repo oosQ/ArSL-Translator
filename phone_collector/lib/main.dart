@@ -46,6 +46,20 @@ class CollectorPage extends StatefulWidget {
 
 class _CollectorPageState extends State<CollectorPage> {
   static const int _predictionHistorySize = 6;
+  static const Map<String, String> _arabicLabelNames = {
+    'alif': 'حرف الألف',
+    'ba': 'حرف الباء',
+    'ta': 'حرف التاء',
+    'tha': 'حرف الثاء',
+    'jeem': 'حرف الجيم',
+    'ha': 'حرف الحاء',
+    'kha': 'حرف الخاء',
+    'dal': 'حرف الدال',
+    'thal': 'حرف الذال',
+    'raa': 'حرف الراء',
+    'unknown': 'إشارة غير معروفة',
+    'Unknown sign': 'إشارة غير معروفة',
+  };
 
   final TextEditingController _labelController = TextEditingController();
 
@@ -87,6 +101,10 @@ class _CollectorPageState extends State<CollectorPage> {
 
     await _loadBundledModel();
     await _setupCamera();
+  }
+
+  String _displayLabel(String label) {
+    return _arabicLabelNames[label] ?? label;
   }
 
   Future<void> _loadBundledModel() async {
@@ -202,7 +220,7 @@ class _CollectorPageState extends State<CollectorPage> {
             _collectorStatus = 'Hand detected. Tap Save Sample.';
             _detectorStatus = smoothedPrediction == null
                 ? 'Trained model loaded. Show one of the trained signs.'
-                : 'Detected ${smoothedPrediction.label} (${(smoothedPrediction.confidence * 100).toStringAsFixed(1)}%).';
+                : 'Detected ${_displayLabel(smoothedPrediction.label)} (${(smoothedPrediction.confidence * 100).toStringAsFixed(1)}%).';
           }
         });
       }
@@ -837,7 +855,7 @@ class _CollectorPageState extends State<CollectorPage> {
                           Text(
                             _prediction == null
                                 ? 'No prediction yet'
-                                : _prediction!.label,
+                                : _displayLabel(_prediction!.label),
                             style: Theme.of(context).textTheme.headlineSmall,
                           ),
                           const SizedBox(height: 4),
@@ -887,7 +905,9 @@ class _CollectorPageState extends State<CollectorPage> {
                               ..._gestureModel!.labelCounts.entries.map(
                                 (entry) => Padding(
                                   padding: const EdgeInsets.only(bottom: 6),
-                                  child: Text('${entry.key}: ${entry.value} samples'),
+                                  child: Text(
+                                    '${_displayLabel(entry.key)}: ${entry.value} samples',
+                                  ),
                                 ),
                               ),
                             ],
